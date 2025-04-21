@@ -9,7 +9,7 @@ ALLOWED_HOSTS = [os.getenv('DJANGO_ALLOWED_HOSTS')]
 
 CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS').split(',')
 
-CSRF_TRUSTED_ORIGINS = []
+CSRF_TRUSTED_ORIGINS = [os.getenv('CSRF_TRUSTED_ORIGINS')]
 
 DATABASES = {
      'default': dj_database_url.config(
