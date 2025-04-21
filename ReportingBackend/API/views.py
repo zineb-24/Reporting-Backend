@@ -45,29 +45,6 @@ class LoginView(APIView):
         return Response(response_data, status=status.HTTP_200_OK)
 
 
-class UserDashboardView(APIView):
-    authentication_classes = [TokenAuthentication]
-
-    def get(self, request):
-
-        # Debug prints
-        #print(f"Auth: {request.auth}")
-        #print(f"User: {request.user}")
-        #print(f"Headers: {request.headers}")
-
-        if request.user.is_admin:
-            return Response({
-                'error': 'Unauthorized access',
-                'redirect': 'api/admin-dashboard/'
-            }, status=status.HTTP_403_FORBIDDEN)
-            
-        user_data = UserSerializer(request.user).data
-        return Response({
-            'message': 'User Dashboard',
-            'user': user_data
-        })
-
-
 class AdminDashboardView(APIView):
     authentication_classes = [TokenAuthentication]
     

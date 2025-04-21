@@ -1,7 +1,7 @@
 #from rest_framework.authtoken import views as token_views
 from django.urls import path
 from .views import (
-    LoginView, UserDashboardView, AdminDashboardView,
+    LoginView, AdminDashboardView,
     AdminUserCreateView, AdminUserListView, AdminUserDetailView, 
     AdminSalleListView, AdminSalleCreateView, AdminSalleDetailView,
     AdminSalleUsersView, AdminUserSalleLinkDetailView, AdminUserSalleLinkListView,
@@ -11,7 +11,6 @@ from .views import (
 urlpatterns = [
     # Login URLS
     path('login/', LoginView.as_view(), name='login'),
-    path('user-dashboard/', UserDashboardView.as_view(), name='user-dashboard'),
     path('admin-dashboard/', AdminDashboardView.as_view(), name='admin-dashboard'),
     
     # Admin user management URLs
