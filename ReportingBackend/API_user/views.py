@@ -10,6 +10,8 @@ from API.serializers import UserSerializer, SalleSerializer
 from API.models import Salle
 from .models import Reglement
 from django.db.models.functions import TruncMonth
+from django.db.models import Sum, F
+from decimal import Decimal
 
 # Get the Salles the user is linked to
 class UserDashboardView(APIView):
@@ -325,3 +327,198 @@ class UserDashboardRevenueView(APIView):
                 'date_type': date_type
             }
         })
+
+
+# View for the Total Revenue Pie Chart
+class UserDashboardDistributionView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Check if user is not admin
+        if request.user.is_admin:
+            return Response({
+                'error': 'Unauthorized access',
+                'redirect': 'api/admin-dashboard/'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get query parameters
+        salle_id = request.query_params.get('salle_id')
+        category = request.query_params.get('category', 'payment_method')  # payment_method, subscription, agent
+        date_type = request.query_params.get('date_type', 'month')
+        date_str = request.query_params.get('date')
+        
+        # Validate salle access
+        try:
+            salle = Salle.objects.get(
+                id_salle=salle_id,
+                user_Links__id_user=request.user
+            )
+        except Salle.DoesNotExist:
+            return Response({
+                'error': 'You do not have access to this gym'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Parse date range
+        try:
+            if not date_str:
+                # Default to current month if no date provided
+                today = timezone.now().date()
+                start_date = today.replace(day=1)
+                if today.month == 12:
+                    end_date = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
+                else:
+                    end_date = today.replace(month=today.month+1, day=1) - timedelta(days=1)
+            elif date_type == 'day':
+                # For single day
+                selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                start_date = selected_date
+                end_date = selected_date
+            elif date_type == 'custom':
+                # Parse date range
+                date_parts = date_str.split('to')
+                if len(date_parts) == 2:
+                    start_date = datetime.strptime(date_parts[0].strip(), '%Y-%m-%d').date()
+                    end_date = datetime.strptime(date_parts[1].strip(), '%Y-%m-%d').date()
+                    
+                    # Ensure end_date is not before start_date
+                    if end_date < start_date:
+                        # Swap dates if needed
+                        start_date, end_date = end_date, start_date
+                else:
+                    # Default to current month if parsing fails
+                    today = timezone.now().date()
+                    start_date = today.replace(day=1)
+                    if today.month == 12:
+                        end_date = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
+                    else:
+                        end_date = today.replace(month=today.month+1, day=1) - timedelta(days=1)
+            else:
+                # Handle other date types (month, year, etc.)
+                # Default to current month
+                today = timezone.now().date()
+                start_date = today.replace(day=1)
+                if today.month == 12:
+                    end_date = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
+                else:
+                    end_date = today.replace(month=today.month+1, day=1) - timedelta(days=1)
+            
+            # Filter reglements based on date range
+            reglements = Reglement.objects.filter(
+                id_salle=salle,
+                DATE_REGLEMENT__date__gte=start_date,
+                DATE_REGLEMENT__date__lte=end_date
+            )
+            
+            # Group by selected category
+            if category == 'payment_method':
+                # Group by MODE (payment method)
+                distribution_data = reglements.values('MODE') \
+                    .annotate(total=Sum('MONTANT')) \
+                    .order_by('-total')
+                
+                # Convert to response format
+                result = [
+                    {
+                        'name': item['MODE'] or 'Unknown',
+                        'value': float(item['total']) if item['total'] else 0
+                    }
+                    for item in distribution_data if item['MODE']
+                ]
+                
+                # Add "Unknown" category for entries with null MODE
+                unknown_total = reglements.filter(MODE__isnull=True).aggregate(total=Sum('MONTANT'))['total'] or 0
+                if unknown_total > 0:
+                    result.append({
+                        'name': 'Unknown',
+                        'value': float(unknown_total)
+                    })
+                
+            elif category == 'subscription':
+                # Group by FAMILLE + SOUSFAMILLE
+                distribution_data = reglements.values('FAMILLE', 'SOUSFAMILLE') \
+                    .annotate(total=Sum('MONTANT')) \
+                    .order_by('-total')
+                
+                # Convert to response format
+                result = []
+                for item in distribution_data:
+                    if item['FAMILLE'] or item['SOUSFAMILLE']:
+                        name = f"{item['FAMILLE'] or ''} - {item['SOUSFAMILLE'] or ''}"
+                        name = name.strip(' -')  # Remove trailing dash if SOUSFAMILLE is empty
+                        result.append({
+                            'name': name or 'Unknown',
+                            'value': float(item['total']) if item['total'] else 0
+                        })
+                
+                # Add "Unknown" category for entries with null FAMILLE and SOUSFAMILLE
+                unknown_total = reglements.filter(FAMILLE__isnull=True, SOUSFAMILLE__isnull=True).aggregate(total=Sum('MONTANT'))['total'] or 0
+                if unknown_total > 0:
+                    result.append({
+                        'name': 'Unknown',
+                        'value': float(unknown_total)
+                    })
+                
+            elif category == 'agent':
+                # Group by USERC (agent)
+                distribution_data = reglements.values('USERC') \
+                    .annotate(total=Sum('MONTANT')) \
+                    .order_by('-total')
+                
+                # Convert to response format
+                result = [
+                    {
+                        'name': item['USERC'] or 'Unknown',
+                        'value': float(item['total']) if item['total'] else 0
+                    }
+                    for item in distribution_data if item['USERC']
+                ]
+                
+                # Add "Unknown" category for entries with null USERC
+                unknown_total = reglements.filter(USERC__isnull=True).aggregate(total=Sum('MONTANT'))['total'] or 0
+                if unknown_total > 0:
+                    result.append({
+                        'name': 'Unknown',
+                        'value': float(unknown_total)
+                    })
+            
+            else:
+                return Response({
+                    'error': 'Invalid category type'
+                }, status=status.HTTP_400_BAD_REQUEST)
+            
+            # Calculate total
+            total_amount = reglements.aggregate(total=Sum('MONTANT'))['total'] or Decimal('0')
+            
+            # Sort results by value (highest first)
+            result.sort(key=lambda x: x['value'], reverse=True)
+            
+            # Limit to top 5 categories for better visualization
+            if len(result) > 5:
+                # Keep top 4 and group the rest as "Others"
+                top_items = result[:4]
+                others_items = result[4:] 
+                others_value = sum(item['value'] for item in others_items)
+                
+                if others_value > 0:
+                    top_items.append({
+                        'name': 'Others',
+                        'value': others_value,
+                        'details': others_items  # Include the detail items
+                    })
+                result = top_items
+            
+            return Response({
+                'distribution_data': result,
+                'total': float(total_amount),
+                'category': category,
+                'period': {
+                    'start_date': start_date.strftime('%Y-%m-%d'),
+                    'end_date': end_date.strftime('%Y-%m-%d')
+                }
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Error processing request: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
