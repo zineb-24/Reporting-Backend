@@ -284,9 +284,74 @@ class UserDashboardRevenueView(APIView):
                         'amount': daily_sum,
                         'label': date_label
                     })
+            
+            elif date_type == 'month':
+                # Handle month view - show each day of the month
+                if not date_str:
+                    today = timezone.now().date()
+                    year, month = today.year, today.month
+                else:
+                    year, month = map(int, date_str.split('-')[:2])
+                
+                start_date = datetime(year, month, 1).date()
+                if month == 12:
+                    end_date = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                else:
+                    end_date = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                
+                days_in_month = (end_date - start_date).days + 1
+                revenue_data = []
+                
+                for i in range(days_in_month):
+                    current_date = start_date + timedelta(days=i)
+                    daily_sum = Reglement.objects.filter(
+                        id_salle=salle,
+                        DATE_REGLEMENT__date=current_date
+                    ).aggregate(total=Sum('MONTANT'))['total'] or 0
+                    
+                    date_label = current_date.strftime('%d/%m')
+                    
+                    revenue_data.append({
+                        'date': current_date.strftime('%Y-%m-%d'),
+                        'amount': daily_sum,
+                        'label': date_label
+                    })
+            
+            elif date_type == 'year':
+                # Handle year view - show each month of the year
+                if not date_str:
+                    year = timezone.now().date().year
+                else:
+                    year = int(date_str)
+                
+                revenue_data = []
+                
+                for month in range(1, 13):
+                    month_start = datetime(year, month, 1).date()
+                    if month == 12:
+                        month_end = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                    else:
+                        month_end = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                    
+                    monthly_sum = Reglement.objects.filter(
+                        id_salle=salle,
+                        DATE_REGLEMENT__date__gte=month_start,
+                        DATE_REGLEMENT__date__lte=month_end
+                    ).aggregate(total=Sum('MONTANT'))['total'] or 0
+                    
+                    month_label = datetime(year, month, 1).strftime('%b')
+                    
+                    revenue_data.append({
+                        'date': month_start.strftime('%Y-%m-%d'),
+                        'amount': monthly_sum,
+                        'label': month_label
+                    })
+                
+                start_date = datetime(year, 1, 1).date()
+                end_date = datetime(year, 12, 31).date()
+            
             else:
-                # Handle other date types (month, year, etc.)
-                # Default to showing current month by days
+                # Handle other date types (default to showing current month by days)
                 today = timezone.now().date()
                 start_date = today.replace(day=1)
                 if today.month == 12:
@@ -393,9 +458,36 @@ class UserDashboardDistributionView(APIView):
                         end_date = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
                     else:
                         end_date = today.replace(month=today.month+1, day=1) - timedelta(days=1)
+            elif date_type == 'month':
+                # Handle month view
+                if len(date_str) >= 7:
+                    year, month = map(int, date_str.split('-')[:2])
+                    start_date = datetime(year, month, 1).date()
+                    if month == 12:
+                        end_date = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                    else:
+                        end_date = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                else:
+                    # Default to current month
+                    today = timezone.now().date()
+                    start_date = today.replace(day=1)
+                    if today.month == 12:
+                        end_date = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
+                    else:
+                        end_date = today.replace(month=today.month+1, day=1) - timedelta(days=1)
+            elif date_type == 'year':
+                # Handle year view
+                if len(date_str) >= 4:
+                    year = int(date_str)
+                    start_date = datetime(year, 1, 1).date()
+                    end_date = datetime(year, 12, 31).date()
+                else:
+                    # Default to current year
+                    today = timezone.now().date()
+                    start_date = datetime(today.year, 1, 1).date()
+                    end_date = datetime(today.year, 12, 31).date()
             else:
-                # Handle other date types (month, year, etc.)
-                # Default to current month
+                # Handle other date types (default to current month)
                 today = timezone.now().date()
                 start_date = today.replace(day=1)
                 if today.month == 12:
@@ -435,28 +527,60 @@ class UserDashboardDistributionView(APIView):
                     })
                 
             elif category == 'subscription':
-                # Group by FAMILLE + SOUSFAMILLE
-                distribution_data = reglements.values('FAMILLE', 'SOUSFAMILLE') \
+                # Group by SOUSFAMILLE only
+                distribution_data = reglements.values('SOUSFAMILLE') \
                     .annotate(total=Sum('MONTANT')) \
                     .order_by('-total')
                 
-                # Convert to response format
+                # Convert to response format with FAMILLE details
                 result = []
                 for item in distribution_data:
-                    if item['FAMILLE'] or item['SOUSFAMILLE']:
-                        name = f"{item['FAMILLE'] or ''} - {item['SOUSFAMILLE'] or ''}"
-                        name = name.strip(' -')  # Remove trailing dash if SOUSFAMILLE is empty
+                    if item['SOUSFAMILLE']:
+                        sousfamille_name = item['SOUSFAMILLE']
+                        sousfamille_total = float(item['total']) if item['total'] else 0
+                        
+                        # Get all FAMILLE details for this SOUSFAMILLE
+                        famille_details = reglements.filter(SOUSFAMILLE=item['SOUSFAMILLE']) \
+                            .values('FAMILLE') \
+                            .annotate(total=Sum('MONTANT')) \
+                            .order_by('-total')
+                        
+                        # Format FAMILLE details
+                        details = []
+                        for detail in famille_details:
+                            if detail['FAMILLE']:  # Only include non-null FAMILLE
+                                details.append({
+                                    'name': detail['FAMILLE'],
+                                    'value': float(detail['total']) if detail['total'] else 0
+                                })
+                        
                         result.append({
-                            'name': name or 'Unknown',
-                            'value': float(item['total']) if item['total'] else 0
+                            'name': sousfamille_name,
+                            'value': sousfamille_total,
+                            'details': details if details else None  # Only add details if there are any
                         })
                 
-                # Add "Unknown" category for entries with null FAMILLE and SOUSFAMILLE
-                unknown_total = reglements.filter(FAMILLE__isnull=True, SOUSFAMILLE__isnull=True).aggregate(total=Sum('MONTANT'))['total'] or 0
+                # Add "Unknown" category for entries with null SOUSFAMILLE
+                unknown_total = reglements.filter(SOUSFAMILLE__isnull=True).aggregate(total=Sum('MONTANT'))['total'] or 0
                 if unknown_total > 0:
+                    # Get FAMILLE details for unknown SOUSFAMILLE
+                    unknown_famille = reglements.filter(SOUSFAMILLE__isnull=True) \
+                        .values('FAMILLE') \
+                        .annotate(total=Sum('MONTANT')) \
+                        .order_by('-total')
+                    
+                    unknown_details = []
+                    for detail in unknown_famille:
+                        if detail['FAMILLE']:
+                            unknown_details.append({
+                                'name': detail['FAMILLE'],
+                                'value': float(detail['total']) if detail['total'] else 0
+                            })
+                    
                     result.append({
                         'name': 'Unknown',
-                        'value': float(unknown_total)
+                        'value': float(unknown_total),
+                        'details': unknown_details if unknown_details else None
                     })
                 
             elif category == 'agent':
@@ -494,17 +618,30 @@ class UserDashboardDistributionView(APIView):
             result.sort(key=lambda x: x['value'], reverse=True)
             
             # Limit to top 5 categories for better visualization
-            if len(result) > 5:
+            if len(result) > 6:
                 # Keep top 4 and group the rest as "Others"
-                top_items = result[:4]
-                others_items = result[4:] 
+                top_items = result[:5]
+                others_items = result[5:] 
                 others_value = sum(item['value'] for item in others_items)
                 
                 if others_value > 0:
+                    # Collect all details from others_items if they exist
+                    others_details = []
+                    for item in others_items:
+                        if item.get('details'):
+                            # If item has details (like SOUSFAMILLE with FAMILLE), add those details
+                            others_details.extend(item['details'])
+                        else:
+                            # If item doesn't have details, add the item itself as a detail
+                            others_details.append({
+                                'name': item['name'],
+                                'value': item['value']
+                            })
+                    
                     top_items.append({
                         'name': 'Others',
                         'value': others_value,
-                        'details': others_items  # Include the detail items
+                        'details': others_details if others_details else others_items  # Include the detail items
                     })
                 result = top_items
             
@@ -516,6 +653,139 @@ class UserDashboardDistributionView(APIView):
                     'start_date': start_date.strftime('%Y-%m-%d'),
                     'end_date': end_date.strftime('%Y-%m-%d')
                 }
+            })
+            
+        except Exception as e:
+            return Response({
+                'error': f'Error processing request: {str(e)}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+
+# View for Reports - All Reglements Data
+class UserDashboardReportsView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # Check if user is not admin
+        if request.user.is_admin:
+            return Response({
+                'error': 'Unauthorized access',
+                'redirect': 'api/admin-dashboard/'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Get query parameters
+        salle_id = request.query_params.get('salle_id')
+        date_type = request.query_params.get('date_type', 'day')
+        date_str = request.query_params.get('date')
+        
+        # Validate salle access
+        try:
+            salle = Salle.objects.get(
+                id_salle=salle_id,
+                user_Links__id_user=request.user
+            )
+        except Salle.DoesNotExist:
+            return Response({
+                'error': 'You do not have access to this gym'
+            }, status=status.HTTP_403_FORBIDDEN)
+        
+        # Parse date range (same logic as other views)
+        try:
+            if not date_str:
+                today = timezone.now().date()
+                start_date = today.replace(day=1)
+                if today.month == 12:
+                    end_date = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
+                else:
+                    end_date = today.replace(month=today.month+1, day=1) - timedelta(days=1)
+            elif date_type == 'day':
+                selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                start_date = selected_date
+                end_date = selected_date
+            elif date_type == 'custom':
+                date_parts = date_str.split('to')
+                if len(date_parts) == 2:
+                    start_date = datetime.strptime(date_parts[0].strip(), '%Y-%m-%d').date()
+                    end_date = datetime.strptime(date_parts[1].strip(), '%Y-%m-%d').date()
+                    if end_date < start_date:
+                        start_date, end_date = end_date, start_date
+                else:
+                    today = timezone.now().date()
+                    start_date = today.replace(day=1)
+                    if today.month == 12:
+                        end_date = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
+                    else:
+                        end_date = today.replace(month=today.month+1, day=1) - timedelta(days=1)
+            elif date_type == 'month':
+                if len(date_str) >= 7:
+                    year, month = map(int, date_str.split('-')[:2])
+                    start_date = datetime(year, month, 1).date()
+                    if month == 12:
+                        end_date = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+                    else:
+                        end_date = datetime(year, month + 1, 1).date() - timedelta(days=1)
+                else:
+                    today = timezone.now().date()
+                    start_date = today.replace(day=1)
+                    if today.month == 12:
+                        end_date = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
+                    else:
+                        end_date = today.replace(month=today.month+1, day=1) - timedelta(days=1)
+            elif date_type == 'year':
+                if len(date_str) >= 4:
+                    year = int(date_str)
+                    start_date = datetime(year, 1, 1).date()
+                    end_date = datetime(year, 12, 31).date()
+                else:
+                    today = timezone.now().date()
+                    start_date = datetime(today.year, 1, 1).date()
+                    end_date = datetime(today.year, 12, 31).date()
+            else:
+                today = timezone.now().date()
+                start_date = today.replace(day=1)
+                if today.month == 12:
+                    end_date = today.replace(year=today.year+1, month=1, day=1) - timedelta(days=1)
+                else:
+                    end_date = today.replace(month=today.month+1, day=1) - timedelta(days=1)
+            
+            # Get all reglements for the date range
+            reglements = Reglement.objects.filter(
+                id_salle=salle,
+                DATE_REGLEMENT__date__gte=start_date,
+                DATE_REGLEMENT__date__lte=end_date
+            ).order_by('-DATE_REGLEMENT')
+            
+            # Serialize the data
+            reglements_data = []
+            for reglement in reglements:
+                reglements_data.append({
+                    'ID_reglement': reglement.ID_reglement,
+                    'CONTRAT': reglement.CONTRAT,
+                    'CLIENT': reglement.CLIENT,
+                    'DATE_CONTRAT': reglement.DATE_CONTRAT.isoformat() if reglement.DATE_CONTRAT else None,
+                    'DATE_DEBUT': reglement.DATE_DEBUT.isoformat() if reglement.DATE_DEBUT else None,
+                    'DATE_FIN': reglement.DATE_FIN.isoformat() if reglement.DATE_FIN else None,
+                    'USERC': reglement.USERC,
+                    'FAMILLE': reglement.FAMILLE,
+                    'SOUSFAMILLE': reglement.SOUSFAMILLE,
+                    'LIBELLE': reglement.LIBELLE,
+                    'DATE_ASSURANCE': reglement.DATE_ASSURANCE.isoformat() if reglement.DATE_ASSURANCE else None,
+                    'MONTANT': float(reglement.MONTANT),
+                    'MODE': reglement.MODE,
+                    'TARIFAIRE': reglement.TARIFAIRE,
+                    'DATE_REGLEMENT': reglement.DATE_REGLEMENT.isoformat() if reglement.DATE_REGLEMENT else None,
+                    'id_salle': reglement.id_salle.id_salle if reglement.id_salle else None,
+                })
+            
+            return Response({
+                'reglements': reglements_data,
+                'period': {
+                    'start_date': start_date.strftime('%Y-%m-%d'),
+                    'end_date': end_date.strftime('%Y-%m-%d'),
+                    'date_type': date_type
+                },
+                'total_count': len(reglements_data)
             })
             
         except Exception as e:
