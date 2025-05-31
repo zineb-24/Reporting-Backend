@@ -12,6 +12,29 @@ from .models import Reglement
 from django.db.models.functions import TruncMonth
 from django.db.models import Sum, F
 from decimal import Decimal
+from django.utils.translation import gettext as _
+from django.utils import translation
+from rest_framework.decorators import api_view
+
+
+# View for language switching
+@api_view(['POST'])
+def set_language(request):
+    """
+    Set the language for the current session
+    """
+    language = request.data.get('language', 'en')
+    if language in ['en', 'fr']:
+        translation.activate(language)
+        request.session[translation.LANGUAGE_SESSION_KEY] = language
+        return Response({
+            'language': language,
+            'message': _('Language changed successfully')
+        })
+    return Response({
+        'error': _('Invalid language')
+    }, status=status.HTTP_400_BAD_REQUEST)
+
 
 # Get the Salles the user is linked to
 class UserDashboardView(APIView):
@@ -21,7 +44,7 @@ class UserDashboardView(APIView):
     def get(self, request):
         if request.user.is_admin:
             return Response({
-                'error': 'Unauthorized access',
+                'error': _('Unauthorized access'),
                 'redirect': 'api/admin-dashboard/'
             }, status=status.HTTP_403_FORBIDDEN)
             
@@ -32,7 +55,7 @@ class UserDashboardView(APIView):
         salles_data = SalleSerializer(user_salles, many=True).data
         
         return Response({
-            'message': 'User Dashboard',
+            'message': _('User Dashboard'),
             'user': user_data,
             'salles': salles_data
         })
@@ -46,7 +69,7 @@ class UserDashboardStatsView(APIView):
         # Check if user is not admin
         if request.user.is_admin:
             return Response({
-                'error': 'Unauthorized access',
+                'error': _('Unauthorized access'),
                 'redirect': 'api/admin-dashboard/'
             }, status=status.HTTP_403_FORBIDDEN)
         
@@ -64,7 +87,7 @@ class UserDashboardStatsView(APIView):
             )
         except Salle.DoesNotExist:
             return Response({
-                'error': 'You do not have access to this gym'
+                'error': _('You do not have access to this gym')
             }, status=status.HTTP_403_FORBIDDEN)
         
         # Parse the date
@@ -103,7 +126,7 @@ class UserDashboardStatsView(APIView):
                     end_date = selected_date
         except (ValueError, IndexError):
             return Response({
-                'error': 'Invalid date format'
+                'error': _('Invalid date format')
             }, status=status.HTTP_400_BAD_REQUEST)
         
         # Get all Reglements related to this salle for the current and all past dates
@@ -176,6 +199,15 @@ class UserDashboardStatsView(APIView):
                 'new_subscriptions_count': new_subscriptions_count,
                 'expired_contracts_count': expired_contracts_count,
                 'active_clients_count': active_clients_count,
+            },
+            # Translation keys for the frontend
+            'labels': {
+                'total_amount': _('Total Amount'),
+                'reglements_count': _('Number of Settlements'),
+                'new_clients_count': _('New Clients'),
+                'new_subscriptions_count': _('New Subscriptions'),
+                'expired_contracts_count': _('Expired Contracts'),
+                'active_clients_count': _('Active Clients'),
             }
         })
 
@@ -188,7 +220,7 @@ class UserDashboardRevenueView(APIView):
         # Check if user is not admin
         if request.user.is_admin:
             return Response({
-                'error': 'Unauthorized access',
+                'error': _('Unauthorized access'),
                 'redirect': 'api/admin-dashboard/'
             }, status=status.HTTP_403_FORBIDDEN)
         
@@ -206,7 +238,7 @@ class UserDashboardRevenueView(APIView):
             )
         except Salle.DoesNotExist:
             return Response({
-                'error': 'You do not have access to this gym'
+                'error': _('You do not have access to this gym')
             }, status=status.HTTP_403_FORBIDDEN)
         
         # Parse the date
@@ -381,7 +413,7 @@ class UserDashboardRevenueView(APIView):
         except (ValueError, IndexError) as e:
             # Error handling
             return Response({
-                'error': f'Invalid date format: {str(e)}'
+                'error': _('Invalid date format: %(error)s') % {'error': str(e)}
             }, status=status.HTTP_400_BAD_REQUEST)
         
         return Response({
@@ -403,7 +435,7 @@ class UserDashboardDistributionView(APIView):
         # Check if user is not admin
         if request.user.is_admin:
             return Response({
-                'error': 'Unauthorized access',
+                'error': _('Unauthorized access'),
                 'redirect': 'api/admin-dashboard/'
             }, status=status.HTTP_403_FORBIDDEN)
         
@@ -421,7 +453,7 @@ class UserDashboardDistributionView(APIView):
             )
         except Salle.DoesNotExist:
             return Response({
-                'error': 'You do not have access to this gym'
+                'error': _('You do not have access to this gym')
             }, status=status.HTTP_403_FORBIDDEN)
         
         # Parse date range
@@ -512,7 +544,7 @@ class UserDashboardDistributionView(APIView):
                 # Convert to response format
                 result = [
                     {
-                        'name': item['MODE'] or 'Unknown',
+                        'name': item['MODE'] or str(_('Unknown')),
                         'value': float(item['total']) if item['total'] else 0
                     }
                     for item in distribution_data if item['MODE']
@@ -522,7 +554,7 @@ class UserDashboardDistributionView(APIView):
                 unknown_total = reglements.filter(MODE__isnull=True).aggregate(total=Sum('MONTANT'))['total'] or 0
                 if unknown_total > 0:
                     result.append({
-                        'name': 'Unknown',
+                        'name': str(_('Unknown')),
                         'value': float(unknown_total)
                     })
                 
@@ -578,7 +610,7 @@ class UserDashboardDistributionView(APIView):
                             })
                     
                     result.append({
-                        'name': 'Unknown',
+                        'name': str(_('Unknown')),
                         'value': float(unknown_total),
                         'details': unknown_details if unknown_details else None
                     })
@@ -592,7 +624,7 @@ class UserDashboardDistributionView(APIView):
                 # Convert to response format
                 result = [
                     {
-                        'name': item['USERC'] or 'Unknown',
+                        'name': item['USERC'] or str(_('Unknown')),
                         'value': float(item['total']) if item['total'] else 0
                     }
                     for item in distribution_data if item['USERC']
@@ -602,13 +634,13 @@ class UserDashboardDistributionView(APIView):
                 unknown_total = reglements.filter(USERC__isnull=True).aggregate(total=Sum('MONTANT'))['total'] or 0
                 if unknown_total > 0:
                     result.append({
-                        'name': 'Unknown',
+                        'name': str(_('Unknown')),
                         'value': float(unknown_total)
                     })
             
             else:
                 return Response({
-                    'error': 'Invalid category type'
+                    'error': _('Invalid category type')
                 }, status=status.HTTP_400_BAD_REQUEST)
             
             # Calculate total
@@ -639,7 +671,7 @@ class UserDashboardDistributionView(APIView):
                             })
                     
                     top_items.append({
-                        'name': 'Others',
+                        'name': str(_('Others')),
                         'value': others_value,
                         'details': others_details if others_details else others_items  # Include the detail items
                     })
@@ -657,7 +689,7 @@ class UserDashboardDistributionView(APIView):
             
         except Exception as e:
             return Response({
-                'error': f'Error processing request: {str(e)}'
+                'error': _('Error processing request: %(error)s') % {'error': str(e)}
             }, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -670,7 +702,7 @@ class UserDashboardReportsView(APIView):
         # Check if user is not admin
         if request.user.is_admin:
             return Response({
-                'error': 'Unauthorized access',
+                'error': _('Unauthorized access'),
                 'redirect': 'api/admin-dashboard/'
             }, status=status.HTTP_403_FORBIDDEN)
         
@@ -687,7 +719,7 @@ class UserDashboardReportsView(APIView):
             )
         except Salle.DoesNotExist:
             return Response({
-                'error': 'You do not have access to this gym'
+                'error': _('You do not have access to this gym')
             }, status=status.HTTP_403_FORBIDDEN)
         
         # Parse date range (same logic as other views)
@@ -790,5 +822,5 @@ class UserDashboardReportsView(APIView):
             
         except Exception as e:
             return Response({
-                'error': f'Error processing request: {str(e)}'
+                'error': _('Error processing request: %(error)s') % {'error': str(e)}
             }, status=status.HTTP_400_BAD_REQUEST)

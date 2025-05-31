@@ -1,0 +1,155 @@
+
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2024-05-29 12:00+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: models.py:6
+msgid "Settlement ID"
+msgstr "ID Règlement"
+
+#: models.py:7
+msgid "Gym"
+msgstr "Salle de Sport"
+
+#: models.py:8
+msgid "Contract"
+msgstr "Contrat"
+
+#: models.py:9
+msgid "Client"
+msgstr "Client"
+
+#: models.py:10
+msgid "Contract Date"
+msgstr "Date de Contrat"
+
+#: models.py:11
+msgid "Start Date"
+msgstr "Date de Début"
+
+#: models.py:12
+msgid "End Date"
+msgstr "Date de Fin"
+
+#: models.py:13
+msgid "Agent"
+msgstr "Agent"
+
+#: models.py:14
+msgid "Family"
+msgstr "Famille"
+
+#: models.py:15
+msgid "Sub-family"
+msgstr "Sous-famille"
+
+#: models.py:16
+msgid "Label"
+msgstr "Libellé"
+
+#: models.py:17
+msgid "Insurance Date"
+msgstr "Date d'Assurance"
+
+#: models.py:18
+msgid "Amount"
+msgstr "Montant"
+
+#: models.py:19
+msgid "Payment Method"
+msgstr "Mode de Paiement"
+
+#: models.py:20
+msgid "Rate"
+msgstr "Tarif"
+
+#: models.py:21
+msgid "Settlement Date"
+msgstr "Date de Règlement"
+
+#: models.py:24
+msgid "Settlement"
+msgstr "Règlement"
+
+#: models.py:25
+msgid "Settlements"
+msgstr "Règlements"
+
+#: views.py:18
+msgid "Language changed successfully"
+msgstr "Langue changée avec succès"
+
+#: views.py:21
+msgid "Invalid language"
+msgstr "Langue invalide"
+
+#: views.py:31 views.py:52 views.py:176 views.py:346 views.py:600
+msgid "Unauthorized access"
+msgstr "Accès non autorisé"
+
+#: views.py:39
+msgid "User Dashboard"
+msgstr "Tableau de Bord Utilisateur"
+
+#: views.py:66 views.py:190 views.py:360 views.py:614
+msgid "You do not have access to this gym"
+msgstr "Vous n'avez pas accès à cette salle de sport"
+
+#: views.py:102
+msgid "Invalid date format"
+msgstr "Format de date invalide"
+
+#: views.py:158
+msgid "Total Amount"
+msgstr "Montant Total"
+
+#: views.py:159
+msgid "Number of Settlements"
+msgstr "Nombre de Règlements"
+
+#: views.py:160
+msgid "New Clients"
+msgstr "Nouveaux Clients"
+
+#: views.py:161
+msgid "New Subscriptions"
+msgstr "Nouveaux Abonnements"
+
+#: views.py:162
+msgid "Expired Contracts"
+msgstr "Contrats Expirés"
+
+#: views.py:163
+msgid "Active Clients"
+msgstr "Clients Actifs"
+
+#: views.py:323
+msgid "Invalid date format: %(error)s"
+msgstr "Format de date invalide : %(error)s"
+
+#: views.py:448 views.py:462 views.py:505 views.py:529 views.py:544
+msgid "Unknown"
+msgstr "Inconnu"
+
+#: views.py:547
+msgid "Invalid category type"
+msgstr "Type de catégorie invalide"
+
+#: views.py:574
+msgid "Others"
+msgstr "Autres"
+
+#: views.py:586 views.py:692
+msgid "Error processing request: %(error)s"
+msgstr "Erreur lors du traitement de la demande : %(error)s"
