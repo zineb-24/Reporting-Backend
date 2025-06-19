@@ -25,4 +25,4 @@ class Reglement(models.Model):
         verbose_name_plural = _('Reglements')
 
     def __str__(self):
-        return f"{_('Contract')} {self.CONTRAT} - {_('Client')} {self.CLIENT}"
+        return f"{_('ID Réglement')} {self.ID_reglement} - {_('Contract')} {self.CONTRAT} - {_('Client')} {self.CLIENT}"
