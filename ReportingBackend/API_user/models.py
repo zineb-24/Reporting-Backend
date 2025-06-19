@@ -21,8 +21,8 @@ class Reglement(models.Model):
     DATE_REGLEMENT = models.DateTimeField(null=True, blank=True, verbose_name=_('Settlement Date'))
 
     class Meta:
-        verbose_name = _('Settlement')
-        verbose_name_plural = _('Settlements')
+        verbose_name = _('Reglement')
+        verbose_name_plural = _('Reglements')
 
     def __str__(self):
         return f"{_('Contract')} {self.CONTRAT} - {_('Client')} {self.CLIENT}"
